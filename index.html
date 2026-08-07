@@ -318,25 +318,32 @@
 
       // Cloud Save Helper
       const saveDataToCloud = (overrideData) => {
-        const payload = overrideData || {
-          schedule, tasks, folders, notes, igPosts, codeGoals,
-          updatedAt: new Date().toISOString()
-        };
-        
-        // Save to LocalStorage
-        if (payload.schedule) localStorage.setItem('boss_schedule', JSON.stringify(payload.schedule));
-        if (payload.tasks) localStorage.setItem('boss_tasks', JSON.stringify(payload.tasks));
-        if (payload.folders) localStorage.setItem('boss_folders', JSON.stringify(payload.folders));
-        if (payload.notes) localStorage.setItem('boss_notes', JSON.stringify(payload.notes));
-        if (payload.igPosts) localStorage.setItem('boss_ig_posts', JSON.stringify(payload.igPosts));
-        if (payload.codeGoals) localStorage.setItem('boss_code_goals', JSON.stringify(payload.codeGoals));
+        try {
+          const payload = overrideData || {
+            schedule, tasks, folders, notes, igPosts, codeGoals,
+            updatedAt: new Date().toISOString()
+          };
+          
+          // Save to LocalStorage
+          if (payload.schedule) localStorage.setItem('boss_schedule', JSON.stringify(payload.schedule));
+          if (payload.tasks) localStorage.setItem('boss_tasks', JSON.stringify(payload.tasks));
+          if (payload.folders) localStorage.setItem('boss_folders', JSON.stringify(payload.folders));
+          if (payload.notes) localStorage.setItem('boss_notes', JSON.stringify(payload.notes));
+          if (payload.igPosts) localStorage.setItem('boss_ig_posts', JSON.stringify(payload.igPosts));
+          if (payload.codeGoals) localStorage.setItem('boss_code_goals', JSON.stringify(payload.codeGoals));
 
-        // Save to Firestore if connected
-        if (!user || !dbInstance) return;
-        setSyncing(true);
-        dbInstance.collection('users').doc(user.uid).set(payload, { merge: true })
-        .then(() => setSyncing(false))
-        .catch(err => setSyncing(false));
+          // Save to Firestore if connected
+          if (!user || !dbInstance) return;
+          setSyncing(true);
+          dbInstance.collection('users').doc(user.uid).set(payload, { merge: true })
+          .then(() => setSyncing(false))
+          .catch(err => {
+            console.error("Firestore write error:", err);
+            setSyncing(false);
+          });
+        } catch (err) {
+          console.error("Storage error:", err);
+        }
       };
 
       // Cloud Listener (User specific)
@@ -388,22 +395,25 @@
 
       // Task actions
       const addTask = (e) => {
-        e.preventDefault();
-        if (!newTaskTitle.trim()) return;
+        if (e) e.preventDefault();
+        if (!newTaskTitle || !newTaskTitle.trim()) return;
+        
         const task = {
           id: Date.now().toString(),
           title: newTaskTitle.trim(),
-          subject: newTaskSubject,
-          priority: newTaskPriority,
-          estTime: newTaskTime,
+          subject: newTaskSubject || 'Terminale Math',
+          priority: newTaskPriority || 'Medium',
+          estTime: newTaskTime || '30m',
           completed: false,
           dueDate: 'Today',
-          notes: newTaskNote
+          notes: newTaskNote || ''
         };
+        
         const updatedTasks = [task, ...tasks];
         setTasks(updatedTasks);
         setNewTaskTitle('');
         setNewTaskNote('');
+        
         saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals });
       };
 
@@ -427,7 +437,7 @@
 
       // Schedule actions
       const addClassToSchedule = (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         if (!newClassSubject.trim()) return;
         const newSlot = {
           id: Date.now().toString(),
@@ -456,7 +466,7 @@
 
       // Extracurriculars
       const addIgPost = (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         if (!newIgTitle.trim()) return;
         const updatedPosts = [...igPosts, {
           id: Date.now().toString(),
@@ -483,7 +493,7 @@
       };
 
       const addCodeGoal = (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         if (!newCodeGoal.trim()) return;
         const updatedGoals = [...codeGoals, {
           id: Date.now().toString(),
@@ -516,7 +526,7 @@
 
       // Note Vault
       const createFolder = (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         if (!newFolderName.trim()) return;
         const newF = { id: 'f_' + Date.now(), name: newFolderName, icon: '📁' };
         const updatedFolders = [...folders, newF];
@@ -938,20 +948,23 @@
                 </div>
 
                 <form onSubmit={addTask} className="bg-[#09090B] border border-[#27272A] p-4 rounded-xl mb-5 space-y-3">
-                  <input
-                    type="text"
-                    required
-                    placeholder="What task needs execution?"
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    className="w-full text-xs bg-transparent border-0 p-1 font-medium text-[#FFFFFF] outline-none"
-                  />
+                  <div>
+                    <label className="block text-[10px] font-mono text-[#71717A] uppercase mb-1">Task Description</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="What task needs execution?"
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      className="w-full text-xs bg-[#18181B] border border-[#27272A] rounded-lg p-2.5 font-medium text-[#FFFFFF] outline-none focus:border-[#E8DCC4]"
+                    />
+                  </div>
                   <input
                     type="text"
                     placeholder="Add an optional note inside this task..."
                     value={newTaskNote}
                     onChange={(e) => setNewTaskNote(e.target.value)}
-                    className="w-full text-[11px] bg-[#18181B] border border-[#27272A] rounded-lg px-2.5 py-1.5 text-[#A1A1AA] outline-none"
+                    className="w-full text-[11px] bg-[#18181B] border border-[#27272A] rounded-lg px-2.5 py-1.5 text-[#A1A1AA] outline-none focus:border-[#E8DCC4]"
                   />
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#18181B]">
                     <select value={newTaskSubject} onChange={(e) => setNewTaskSubject(e.target.value)} className="text-xs bg-[#18181B] border border-[#27272A] rounded-lg px-2.5 py-1.5 text-[#E4E4E7]">
@@ -976,7 +989,13 @@
                     </select>
                   </div>
                   <div className="flex justify-end pt-1">
-                    <button type="submit" className="px-4 py-1.5 text-xs font-bold bg-[#E8DCC4] text-[#09090B] rounded-lg cursor-pointer hover:bg-[#d4c3a3]">Save Task</button>
+                    <button 
+                      type="submit" 
+                      onClick={addTask}
+                      className="px-4 py-1.5 text-xs font-bold bg-[#E8DCC4] text-[#09090B] rounded-lg cursor-pointer hover:bg-[#d4c3a3] transition-colors"
+                    >
+                      Save Task
+                    </button>
                   </div>
                 </form>
 
@@ -1071,7 +1090,7 @@
                           <option value="Carousel">Carousel</option>
                           <option value="Story">Story</option>
                         </select>
-                        <button type="submit" className="px-3 py-2 bg-[#E8DCC4] text-[#09090B] rounded-lg text-xs font-bold cursor-pointer">Save</button>
+                        <button type="submit" onClick={addIgPost} className="px-3 py-2 bg-[#E8DCC4] text-[#09090B] rounded-lg text-xs font-bold cursor-pointer">Save</button>
                       </form>
 
                       <div className="space-y-2.5 max-h-[280px] overflow-y-auto">
@@ -1119,7 +1138,7 @@
                           onChange={(e) => setNewCodeGoal(e.target.value)}
                           className="flex-1 text-xs bg-[#09090B] border border-[#27272A] rounded-lg px-3 py-2 text-[#FFFFFF] outline-none"
                         />
-                        <button type="submit" className="px-3 py-2 bg-[#E8DCC4] text-[#09090B] rounded-lg text-xs font-bold cursor-pointer">Add Goal</button>
+                        <button type="submit" onClick={addCodeGoal} className="px-3 py-2 bg-[#E8DCC4] text-[#09090B] rounded-lg text-xs font-bold cursor-pointer">Add Goal</button>
                       </form>
 
                       <div className="space-y-2 max-h-[280px] overflow-y-auto">
@@ -1192,7 +1211,7 @@
                       onChange={(e) => setNewFolderName(e.target.value)}
                       className="flex-1 text-xs bg-[#18181B] border border-[#27272A] rounded-lg px-2.5 py-1.5 text-[#FFFFFF] outline-none"
                     />
-                    <button type="submit" className="px-3 py-1.5 bg-[#E8DCC4] text-[#09090B] font-bold text-xs rounded-lg cursor-pointer">Create</button>
+                    <button type="submit" onClick={createFolder} className="px-3 py-1.5 bg-[#E8DCC4] text-[#09090B] font-bold text-xs rounded-lg cursor-pointer">Create</button>
                   </form>
                 )}
 
