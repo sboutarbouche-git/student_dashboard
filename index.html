@@ -182,6 +182,10 @@
       { id: '3', text: 'Send 5 personalized cold emails to agency prospects', status: 'Pending', notes: 'Target e-commerce founders in tech.' }
     ];
 
+    const INITIAL_CALENDAR_NOTES = {
+      // Format: 'YYYY-MM-DD': 'Note content'
+    };
+
     function DashboardApp() {
       // Firebase Config Modal & Auth State
       const [showConfigModal, setShowConfigModal] = useState(false);
@@ -284,6 +288,15 @@
         const local = localStorage.getItem('boss_code_goals');
         return local ? JSON.parse(local) : INITIAL_CODE_GOALS;
       });
+      const [calendarNotes, setCalendarNotes] = useState(() => {
+        const local = localStorage.getItem('boss_calendar_notes');
+        return local ? JSON.parse(local) : INITIAL_CALENDAR_NOTES;
+      });
+
+      // Calendar Navigation & Day Note Modal State
+      const [calendarViewDate, setCalendarViewDate] = useState(new Date());
+      const [selectedCalDateStr, setSelectedCalDateStr] = useState(null);
+      const [calModalText, setCalModalText] = useState('');
 
       // Expandable drawers
       const [expandedTaskId, setExpandedTaskId] = useState(null);
@@ -320,7 +333,7 @@
       const saveDataToCloud = (overrideData) => {
         try {
           const payload = overrideData || {
-            schedule, tasks, folders, notes, igPosts, codeGoals,
+            schedule, tasks, folders, notes, igPosts, codeGoals, calendarNotes,
             updatedAt: new Date().toISOString()
           };
           
@@ -331,6 +344,7 @@
           if (payload.notes) localStorage.setItem('boss_notes', JSON.stringify(payload.notes));
           if (payload.igPosts) localStorage.setItem('boss_ig_posts', JSON.stringify(payload.igPosts));
           if (payload.codeGoals) localStorage.setItem('boss_code_goals', JSON.stringify(payload.codeGoals));
+          if (payload.calendarNotes) localStorage.setItem('boss_calendar_notes', JSON.stringify(payload.calendarNotes));
 
           // Save to Firestore if connected
           if (!user || !dbInstance) return;
@@ -359,6 +373,7 @@
             if (data.notes) setNotes(data.notes);
             if (data.igPosts) setIgPosts(data.igPosts);
             if (data.codeGoals) setCodeGoals(data.codeGoals);
+            if (data.calendarNotes) setCalendarNotes(data.calendarNotes);
           }
         });
         return () => unsubscribe();
@@ -393,6 +408,39 @@
         window.location.reload();
       };
 
+      // Calendar Actions
+      const openCalendarDayModal = (dateStr) => {
+        setSelectedCalDateStr(dateStr);
+        setCalModalText(calendarNotes[dateStr] || '');
+      };
+
+      const saveCalendarDayNote = (e) => {
+        if (e) e.preventDefault();
+        if (!selectedCalDateStr) return;
+        
+        const updatedNotes = { ...calendarNotes };
+        if (calModalText.trim()) {
+          updatedNotes[selectedCalDateStr] = calModalText.trim();
+        } else {
+          delete updatedNotes[selectedCalDateStr];
+        }
+        
+        setCalendarNotes(updatedNotes);
+        setSelectedCalDateStr(null);
+        setCalModalText('');
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals, calendarNotes: updatedNotes });
+      };
+
+      const deleteCalendarDayNote = () => {
+        if (!selectedCalDateStr) return;
+        const updatedNotes = { ...calendarNotes };
+        delete updatedNotes[selectedCalDateStr];
+        setCalendarNotes(updatedNotes);
+        setSelectedCalDateStr(null);
+        setCalModalText('');
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals, calendarNotes: updatedNotes });
+      };
+
       // Task actions
       const addTask = (e) => {
         if (e) e.preventDefault();
@@ -414,25 +462,25 @@
         setNewTaskTitle('');
         setNewTaskNote('');
         
-        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       const updateTaskNote = (id, text) => {
         const updatedTasks = tasks.map(t => t.id === id ? { ...t, notes: text } : t);
         setTasks(updatedTasks);
-        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       const toggleTask = (id) => {
         const updatedTasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
         setTasks(updatedTasks);
-        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       const deleteTask = (id) => {
         const updatedTasks = tasks.filter(t => t.id !== id);
         setTasks(updatedTasks);
-        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks: updatedTasks, folders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       // Schedule actions
@@ -452,7 +500,7 @@
         setSchedule(updatedSchedule);
         setNewClassSubject('');
         setIsAddingClass(false);
-        saveDataToCloud({ schedule: updatedSchedule, tasks, folders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule: updatedSchedule, tasks, folders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       const deleteClass = (id) => {
@@ -461,7 +509,7 @@
           [selectedDay]: (schedule[selectedDay] || []).filter(item => item.id !== id)
         };
         setSchedule(updatedSchedule);
-        saveDataToCloud({ schedule: updatedSchedule, tasks, folders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule: updatedSchedule, tasks, folders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       // Extracurriculars
@@ -477,19 +525,19 @@
         }];
         setIgPosts(updatedPosts);
         setNewIgTitle('');
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts: updatedPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts: updatedPosts, codeGoals, calendarNotes });
       };
 
       const updateIgNote = (id, text) => {
         const updatedPosts = igPosts.map(p => p.id === id ? { ...p, notes: text } : p);
         setIgPosts(updatedPosts);
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts: updatedPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts: updatedPosts, codeGoals, calendarNotes });
       };
 
       const deleteIgPost = (id) => {
         const updatedPosts = igPosts.filter(p => p.id !== id);
         setIgPosts(updatedPosts);
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts: updatedPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts: updatedPosts, codeGoals, calendarNotes });
       };
 
       const addCodeGoal = (e) => {
@@ -503,25 +551,25 @@
         }];
         setCodeGoals(updatedGoals);
         setNewCodeGoal('');
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals, calendarNotes });
       };
 
       const updateGoalNote = (id, text) => {
         const updatedGoals = codeGoals.map(g => g.id === id ? { ...g, notes: text } : g);
         setCodeGoals(updatedGoals);
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals, calendarNotes });
       };
 
       const toggleCodeGoal = (id) => {
         const updatedGoals = codeGoals.map(g => g.id === id ? { ...g, status: g.status === 'Done' ? 'In Progress' : 'Done' } : g);
         setCodeGoals(updatedGoals);
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals, calendarNotes });
       };
 
       const deleteCodeGoal = (id) => {
         const updatedGoals = codeGoals.filter(g => g.id !== id);
         setCodeGoals(updatedGoals);
-        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes, igPosts, codeGoals: updatedGoals, calendarNotes });
       };
 
       // Note Vault
@@ -534,7 +582,7 @@
         setOpenedFolderId(newF.id);
         setNewFolderName('');
         setIsAddingFolder(false);
-        saveDataToCloud({ schedule, tasks, folders: updatedFolders, notes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders: updatedFolders, notes, igPosts, codeGoals, calendarNotes });
       };
 
       const deleteFolder = (id, e) => {
@@ -545,7 +593,7 @@
         setFolders(updatedFolders);
         setNotes(updatedNotes);
         if (openedFolderId === id) setOpenedFolderId(null);
-        saveDataToCloud({ schedule, tasks, folders: updatedFolders, notes: updatedNotes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders: updatedFolders, notes: updatedNotes, igPosts, codeGoals, calendarNotes });
       };
 
       const createNewNote = () => {
@@ -554,14 +602,14 @@
         const updatedNotes = [newNote, ...notes];
         setNotes(updatedNotes);
         setActiveNoteId(newNote.id);
-        saveDataToCloud({ schedule, tasks, folders, notes: updatedNotes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes: updatedNotes, igPosts, codeGoals, calendarNotes });
       };
 
       const deleteNote = (id, e) => {
         e.stopPropagation();
         const updatedNotes = notes.filter(n => n.id !== id);
         setNotes(updatedNotes);
-        saveDataToCloud({ schedule, tasks, folders, notes: updatedNotes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes: updatedNotes, igPosts, codeGoals, calendarNotes });
       };
 
       const handleNoteChange = (field, value) => {
@@ -569,7 +617,7 @@
         if (field === 'content') setNoteContent(value);
         const updatedNotes = notes.map(n => n.id === activeNoteId ? { ...n, [field]: value } : n);
         setNotes(updatedNotes);
-        saveDataToCloud({ schedule, tasks, folders, notes: updatedNotes, igPosts, codeGoals });
+        saveDataToCloud({ schedule, tasks, folders, notes: updatedNotes, igPosts, codeGoals, calendarNotes });
       };
 
       const sortedTasks = [...tasks].sort((a, b) => {
@@ -586,6 +634,32 @@
 
       const currentOpenedFolder = folders.find(f => f.id === openedFolderId);
       const currentFolderNotes = notes.filter(n => n.folderId === openedFolderId);
+
+      // --- CALENDAR GENERATION HELPERS ---
+      const year = calendarViewDate.getFullYear();
+      const month = calendarViewDate.getMonth();
+      
+      const firstDayOfMonth = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      // Starting day offset (0 = Mon, 6 = Sun)
+      let startingDay = firstDayOfMonth.getDay() - 1;
+      if (startingDay === -1) startingDay = 6; // Sunday fix
+      
+      const monthName = calendarViewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const prevMonth = () => {
+        setCalendarViewDate(new Date(year, month - 1, 1));
+      };
+
+      const nextMonth = () => {
+        setCalendarViewDate(new Date(year, month + 1, 1));
+      };
+
+      const resetToToday = () => {
+        setCalendarViewDate(new Date());
+      };
 
       // --- IF NOT LOGGED IN: SHOW LOGIN SCREEN ---
       if (!user) {
@@ -810,6 +884,61 @@
                   <div className="pt-2 flex justify-end gap-2">
                     <button type="button" onClick={() => setShowConfigModal(false)} className="px-3 py-1.5 text-xs font-semibold text-[#A1A1AA] cursor-pointer">Cancel</button>
                     <button type="submit" className="px-4 py-1.5 text-xs font-bold bg-[#E8DCC4] text-[#09090B] rounded-lg cursor-pointer">Save &amp; Reload</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Day Note Editor Modal */}
+          {selectedCalDateStr && (
+            <div className="fixed inset-0 bg-[#09090B]/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-[#27272A] pb-3">
+                  <div className="flex items-center gap-2">
+                    <Icon name="calendar" className="w-5 h-5 text-[#E8DCC4]" />
+                    <h3 className="text-sm font-bold text-[#FFFFFF]">Note for {selectedCalDateStr}</h3>
+                  </div>
+                  <button onClick={() => setSelectedCalDateStr(null)} className="text-[#71717A] hover:text-[#FFFFFF] cursor-pointer">
+                    <Icon name="x" className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={saveCalendarDayNote} className="space-y-4">
+                  <textarea
+                    rows={4}
+                    value={calModalText}
+                    onChange={(e) => setCalModalText(e.target.value)}
+                    placeholder="Add reminders, exams, events, or strategy notes for this day..."
+                    className="w-full text-xs bg-[#09090B] border border-[#27272A] rounded-xl p-3 text-[#FFFFFF] outline-none focus:border-[#E8DCC4] resize-none"
+                  />
+
+                  <div className="flex items-center justify-between pt-2 border-t border-[#27272A]">
+                    {calendarNotes[selectedCalDateStr] ? (
+                      <button
+                        type="button"
+                        onClick={deleteCalendarDayNote}
+                        className="px-3 py-1.5 text-xs font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Icon name="trash-2" className="w-3.5 h-3.5" /> Clear Note
+                      </button>
+                    ) : <div />}
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCalDateStr(null)}
+                        className="px-3 py-1.5 text-xs font-semibold text-[#A1A1AA] cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 text-xs font-bold bg-[#E8DCC4] text-[#09090B] rounded-lg cursor-pointer hover:bg-[#d4c3a3]"
+                      >
+                        Save Note
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>
@@ -1051,6 +1180,102 @@
               </section>
 
             </div>
+
+            {/* Middle Row — 📅 Interactive Monthly Calendar Overview */}
+            <section className="bg-[#18181B] border border-[#27272A] rounded-xl p-6 shadow-md">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📅</span>
+                  <div>
+                    <h2 className="text-base font-semibold text-[#FFFFFF]">Interactive Monthly Overview</h2>
+                    <p className="text-[11px] text-[#71717A]">Click any date to add or edit notes, events, or deadlines</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={resetToToday}
+                    className="px-2.5 py-1 text-xs font-semibold bg-[#09090B] border border-[#27272A] text-[#E8DCC4] rounded-lg hover:bg-[#27272A] cursor-pointer"
+                  >
+                    Today
+                  </button>
+                  <div className="flex items-center bg-[#09090B] border border-[#27272A] rounded-lg p-0.5">
+                    <button
+                      onClick={prevMonth}
+                      className="p-1 text-[#A1A1AA] hover:text-[#FFFFFF] cursor-pointer"
+                      title="Previous Month"
+                    >
+                      <Icon name="chevron-left" className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-bold text-[#FFFFFF] px-3 min-w-[120px] text-center">
+                      {monthName}
+                    </span>
+                    <button
+                      onClick={nextMonth}
+                      className="p-1 text-[#A1A1AA] hover:text-[#FFFFFF] cursor-pointer"
+                      title="Next Month"
+                    >
+                      <Icon name="chevron-right" className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center">
+                {/* Day Headers */}
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(dayHeader => (
+                  <div key={dayHeader} className="text-[11px] font-bold uppercase tracking-wider text-[#71717A] py-1">
+                    {dayHeader}
+                  </div>
+                ))}
+
+                {/* Empty Offset Boxes */}
+                {Array.from({ length: startingDay }).map((_, i) => (
+                  <div key={`empty-${i}`} className="h-16 sm:h-20 bg-[#09090B]/30 border border-[#27272A]/30 rounded-xl opacity-20"></div>
+                ))}
+
+                {/* Month Days */}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const dayNum = i + 1;
+                  const monthNumStr = String(month + 1).padStart(2, '0');
+                  const dayNumStr = String(dayNum).padStart(2, '0');
+                  const dateKey = `${year}-${monthNumStr}-${dayNumStr}`;
+                  
+                  const isToday = dateKey === todayStr;
+                  const hasNote = Boolean(calendarNotes[dateKey]);
+
+                  return (
+                    <div
+                      key={dateKey}
+                      onClick={() => openCalendarDayModal(dateKey)}
+                      className={`h-16 sm:h-20 bg-[#09090B] border rounded-xl p-1.5 sm:p-2 flex flex-col justify-between transition-all cursor-pointer group hover:border-[#E8DCC4] text-left relative overflow-hidden ${
+                        isToday ? 'border-[#E8DCC4] shadow-sm shadow-[#E8DCC4]/10' : 'border-[#27272A]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold font-mono ${isToday ? 'text-[#E8DCC4]' : 'text-[#A1A1AA] group-hover:text-[#FFFFFF]'}`}>
+                          {dayNum}
+                        </span>
+                        {hasNote && (
+                          <span className="w-2 h-2 rounded-full bg-[#E8DCC4] shadow-sm animate-pulse"></span>
+                        )}
+                      </div>
+
+                      {hasNote ? (
+                        <p className="text-[10px] text-[#E4E4E7] font-sans truncate leading-tight line-clamp-2 mt-1">
+                          {calendarNotes[dateKey]}
+                        </p>
+                      ) : (
+                        <span className="text-[9px] text-[#3F3F46] opacity-0 group-hover:opacity-100 transition-opacity">
+                          + add note
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
             {/* Bottom Grid Row */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
